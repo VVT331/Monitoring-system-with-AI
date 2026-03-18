@@ -1,0 +1,20 @@
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+/__pycache__
+
+# testing
+
+
+# production
+
+
+# misc
+
+analysis.txt
+last_chunk.txt
+event_counter.txt
+report.json
+
+vpn_monitor.log
+device_monitor.log
