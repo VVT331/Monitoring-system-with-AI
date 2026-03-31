@@ -1,27 +1,40 @@
 import requests
 import logging
 
-# Настройки (только для VPN)
-HOME_IP = "1111111"  # Замени на реальный IP без VPN
-API_URL = "https://api.ipify.org?format=json"
+# Настройки
+HOME_IP = "111.111.111.111"          # Корреной IP
+API_URLS = [
+    "https://api.ipify.org?format=json",
+    "https://api.ipapi.is/?format=json",   # запасной сервис
+]
 
-# Функция для получения текущего IP
 def get_current_ip():
-    try:
-        response = requests.get(API_URL, timeout=10)
-        return response.json().get('ip')
-    except Exception as e:
-        logging.error(f"Ошибка получения IP: {e}")
-        return None
+    for url in API_URLS:
+        try:
+            response = requests.get(url, timeout=8)
+            if response.status_code == 200:
+                data = response.json()
+                ip = data.get('ip') or data.get('ipAddress')
+                if ip:
+                    logging.info(f"Получен IP от {url}: {ip}")
+                    return ip
+        except Exception as e:
+            logging.warning(f"Не удалось получить IP от {url}: {e}")
+            continue
+    logging.error("Не удалось получить IP ни от одного сервиса")
+    return None
 
-# Функция для проверки VPN
 def check_vpn():
     current_ip = get_current_ip()
     if not current_ip:
-        logging.warning("Не удалось получить IP-адрес")
+        logging.warning("Не удалось получить текущий IP-адрес")
         return "неизвестно"
     
-    is_vpn = current_ip != HOME_IP
-    status = "активен" if is_vpn else "отключен"
-    logging.info(f"Текущий IP: {current_ip} | VPN: {status}")
+    # Сравниваем с домашним IP
+    is_vpn_active = current_ip != HOME_IP
+    
+    status = "активен" if is_vpn_active else "отключен"
+    
+    logging.info(f"Текущий IP: {current_ip} | Домашний IP: {HOME_IP} | VPN: {status}")
+    
     return status

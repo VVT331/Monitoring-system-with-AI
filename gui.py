@@ -5,7 +5,7 @@ import time
 import webbrowser
 import logging
 import schedule
-from main import run_monitor, stop_monitoring
+from main import run_monitor, stop_monitoring, start_ai_analysis
 
 class GuiLogHandler(logging.Handler):
     def __init__(self, app):
@@ -76,7 +76,14 @@ class MonitorApp:
         self.log("⏹ Мониторинг остановлен.")
 
     def background_loop(self):
-        schedule.every(1).minutes.do(run_monitor)  # 1 минута для теста
+        import schedule  # ← важно импортировать здесь
+        
+        # Настраиваем расписание один раз
+        schedule.every(1).minutes.do(run_monitor)           # сбор данных
+        schedule.every(4).minutes.do(start_ai_analysis)    # анализ AI
+        
+        logging.info("Расписание запущено: мониторинг — 1 мин, AI — 10 мин")
+
         while self.running:
             schedule.run_pending()
             time.sleep(1)

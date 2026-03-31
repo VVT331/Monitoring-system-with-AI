@@ -4,36 +4,28 @@ import logging
 import time
 from plyer import notification
 
-# ===================== НАСТРОЙКИ LM STUDIO =====================
+# ===================== НАСТРОЙКИ =====================
 LMSTUDIO_URL = "http://localhost:1234/v1/chat/completions"
-MODEL = "qwen3.5-4b"          # ← точное имя твоей модели
+MODEL = "Qwen3.5-4B-GGUF"
 ANALYSIS_FILE = "analysis.txt"
 REPORT_FILE = "report.json"
-CHUNK_SIZE = 50                    # ← Уменьшено с 200 до 50 (чтобы быстрее отвечала)
+CHUNK_SIZE = 30                    # ← уменьшено для слабого ПК
 LAST_CHUNK_FILE = "last_chunk.txt"
-TIMEOUT_SECONDS = 600              # ← 5 минут
+TIMEOUT_SECONDS = 800              # ← 10 минут — достаточно даже на слабом ПК
 
 SYSTEM_PROMPT = """
-Ты аналитик ИБ. Кратко проанализируй отрезок лога (события № {start}-{end}):
-{chunk_data}
+Ты строгий аналитик информационной безопасности. 
+Проанализируй последние события из лога (это период последних ~10 минут):
+
+{events_data}
 
 Ответ строго по шаблону:
-- Отрезок: события № {start}-{end}
+
+- Период: последние 10 минут
 - Оценка: [безопасно/средний риск/высокий риск]
 - Объяснение: [1-2 предложения]
 - Рекомендации: [1-2 пункта]
 """
-
-def get_last_index():
-    try:
-        with open(LAST_CHUNK_FILE, 'r') as f:
-            return int(f.read().strip())
-    except:
-        return 0
-
-def save_last_index(index):
-    with open(LAST_CHUNK_FILE, 'w') as f:
-        f.write(str(index))
 
 def analyze_report():
     start_time = time.time()
@@ -42,49 +34,40 @@ def analyze_report():
             report_data = json.load(f)
         
         events = report_data.get("events", [])
-        total = len(events)
+        recent_events = events[-CHUNK_SIZE:]   # последние 30 событий
         
-        start_idx = get_last_index()
-        end_idx = min(start_idx + CHUNK_SIZE, total)
+        events_data = json.dumps(recent_events, ensure_ascii=False, indent=None)
         
-        if start_idx >= total and total > 0:
-            start_idx = 0
-            end_idx = total
-        
-        chunk = events[start_idx:end_idx]
-        chunk_data = json.dumps(chunk, ensure_ascii=False, indent=None)
-        
-        prompt = SYSTEM_PROMPT.format(start=start_idx+1, end=end_idx, chunk_data=chunk_data)
+        prompt = SYSTEM_PROMPT.format(events_data=events_data)
         
         data = {
             "model": MODEL,
             "messages": [
-                {"role": "system", "content": "Ты строгий аналитик ИБ."},
+                {"role": "system", "content": "Отвечай ТОЛЬКО по шаблону. Никаких размышлений."},
                 {"role": "user", "content": prompt}
             ],
             "stream": False
         }
         
-        logging.info(f"Отправка запроса в LM Studio (модель {MODEL})...")
+        logging.info(f"Отправка на анализ AI: последние {len(recent_events)} событий...")
         response = requests.post(LMSTUDIO_URL, json=data, timeout=TIMEOUT_SECONDS)
         
-        ai_response = response.json()["choices"][0]["message"]["content"]
+        ai_response = response.json()["choices"][0]["message"]["content"].strip()
         
         with open(ANALYSIS_FILE, 'w', encoding='utf-8') as f:
             f.write(ai_response)
         
         elapsed = round(time.time() - start_time, 1)
-        logging.info(f"✅ AI проанализировал отрезок №{start_idx+1}-{end_idx} за {elapsed} сек")
+        logging.info(f"✅ AI проанализировал последние {len(recent_events)} событий за {elapsed} сек")
         
-        save_last_index(end_idx)
-        
+        # Уведомления
         lower = ai_response.lower()
         if "высокий риск" in lower:
-            notification.notify(title="⚠ ВЫСОКИЙ РИСК!", message=f"Отрезок {start_idx+1}-{end_idx}", timeout=12)
+            notification.notify(title="⚠ ВЫСОКИЙ РИСК!", message="Обнаружена критическая угроза!", timeout=12)
         elif "средний риск" in lower:
-            notification.notify(title="⚠ Средний риск", message=f"Отрезок {start_idx+1}-{end_idx}", timeout=8)
+            notification.notify(title="⚠ Средний риск", message="Проверьте систему", timeout=8)
         else:
-            notification.notify(title="✅ Анализ готов", message=f"Отрезок {start_idx+1}-{end_idx}", timeout=6)
+            notification.notify(title="✅ Анализ готов", message="За последние 10 минут", timeout=6)
         
     except Exception as e:
         logging.error(f"Ошибка AI: {e}")
