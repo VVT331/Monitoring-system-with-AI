@@ -2,14 +2,14 @@ import psutil
 import logging
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from log_generator import add_event
+from log_generator import addEvent
 
 # Настройки
 IGNORE_C_DRIVE = True
 
 # Глобальные переменные
-previous_disks = set()
-fs_observers = {}
+previousDisks = set()
+fsObservers = {}
 
 class FsEventHandler(FileSystemEventHandler):
     def on_any_event(self, event):
@@ -18,53 +18,82 @@ class FsEventHandler(FileSystemEventHandler):
         
         path_lower = event.src_path.lower()
         
-        # === ФИЛЬТР НАШИХ СЛУЖЕБНЫХ ФАЙЛОВ ===
+        # Фильтр служебных файлов программы
         if any(f in path_lower for f in ['report.json', 'analysis.txt', 'last_chunk.txt', 'event_counter.txt']):
             return
         
-        # Старые фильтры (системные папки и расширения)
-        ignored_dirs = ['\\windows\\', '\\program files', '\\program files (x86)\\', '\\appdata\\', '\\temp\\', '\\tmp\\', '\\$recycle.bin\\', '\\system volume information\\']
-        ignored_exts = ['.log', '.tmp', '.swp']
-        if any(d in path_lower for d in ignored_dirs) or any(path_lower.endswith(ext) for ext in ignored_exts):
+        # Фильтр системных папок и расширений
+        ignoredDirs = [
+            '\\windows\\', 
+            '\\program files', 
+            '\\program files (x86)\\', 
+            '\\appdata\\', 
+            '\\temp\\', 
+            '\\tmp\\', 
+            '\\$recycle.bin\\', 
+            '\\system volume information\\'
+        ]
+        ignoredExts = ['.log', '.tmp', '.swp']
+        
+        if any(d in path_lower for d in ignoredDirs) or any(path_lower.endswith(ext) for ext in ignoredExts):
             return
         
         details = f"{event.event_type} {event.src_path}"
-        add_event("fs_event", details)
+        addEvent("fs_event", details)
 
-# Функция обновления мониторинга
-def update_fs_monitoring():
-    global previous_disks, fs_observers
-    current_partitions = psutil.disk_partitions()
-    current_disks = set(p.mountpoint for p in current_partitions if p.opts != 'cdrom' and p.mountpoint)
+def updateFsMonitor():
+    global previousDisks, fsObservers
     
-    new_disks = current_disks - previous_disks
-    for disk in new_disks:
+    try:
+        currentPartitions = psutil.disk_partitions()
+        currentDisks = set(p.mountpoint for p in currentPartitions if p.opts != 'cdrom' and p.mountpoint)
+    except Exception as e:
+        logging.error(f"Ошибка получения списка дисков: {e}")
+        return
+
+    newDisks = currentDisks - previousDisks
+    for disk in newDisks:
         if IGNORE_C_DRIVE and disk.upper() == 'C:\\':
             continue
+        
         details = f"подключен: {disk}"
-        add_event("disk_connect", details)
-        observer = Observer()
-        handler = FsEventHandler()
-        observer.schedule(handler, disk, recursive=True)
-        observer.start()
-        fs_observers[disk] = observer
-    
-    removed_disks = previous_disks - current_disks
-    for disk in removed_disks:
+        addEvent("disk_connect", details)
+        
+        try:
+            observer = Observer()
+            handler = FsEventHandler()
+            observer.schedule(handler, disk, recursive=True)
+            observer.start()
+            fsObservers[disk] = observer
+            logging.info(f"🔌 Наблюдатель запущен: {disk}")
+        except Exception as e:
+            logging.error(f"Не удалось запустить наблюдатель для {disk}: {e}")
+
+    removedDisks = previousDisks - currentDisks
+    for disk in removedDisks:
         if IGNORE_C_DRIVE and disk.upper() == 'C:\\':
             continue
+            
         details = f"отключен: {disk}"
-        add_event("disk_disconnect", details)
-        if disk in fs_observers:
-            fs_observers[disk].stop()
-            fs_observers[disk].join()
-            del fs_observers[disk]
-    
-    previous_disks = current_disks
+        addEvent("disk_disconnect", details)
+        
+        if disk in fsObservers:
+            try:
+                fsObservers[disk].stop()
+                fsObservers[disk].join()
+                del fsObservers[disk]
+                logging.info(f"🔌 Наблюдатель остановлен: {disk}")
+            except Exception as e:
+                logging.error(f"Ошибка остановки наблюдателя {disk}: {e}")
 
-def stop_fs_observers():
-    global fs_observers
-    for observer in list(fs_observers.values()):
-        observer.stop()
-        observer.join()
-    fs_observers.clear()
+    previousDisks = currentDisks
+
+def stopFsObservers():
+    global fsObservers
+    for disk, observer in list(fsObservers.items()):
+        try:
+            observer.stop()
+            observer.join(timeout=2)
+        except Exception as e:
+            logging.error(f"Ошибка при остановке наблюдателя {disk}: {e}")
+    fsObservers.clear()

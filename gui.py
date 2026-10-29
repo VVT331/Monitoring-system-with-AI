@@ -5,7 +5,12 @@ import time
 import webbrowser
 import logging
 import schedule
-from main import run_monitor, stop_monitoring, start_ai_analysis
+from main import runMonitor, stopMonitoring, startAiAnalysis
+
+bgColor = "#121212"
+textColor = "#e0e0e0"
+subTextColor = "#9aa0a6"
+logBg = "#252526"
 
 class GuiLogHandler(logging.Handler):
     def __init__(self, app):
@@ -19,30 +24,49 @@ class GuiLogHandler(logging.Handler):
 class MonitorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Мониторинг ИБ — Диплом")
-        self.root.geometry("800x650")
+        self.root.title("Система мониторинга")
+        self.root.geometry("850x680")
+        self.root.configure(bg=bgColor)
 
-        tk.Label(root, text="Система мониторинга информационной безопасности", font=("Arial", 16, "bold")).pack(pady=15)
+        tk.Label(root, text="Система мониторинга", font=("Segoe UI", 18, "bold"),
+                 bg=bgColor, fg=textColor).pack(pady=(25, 10))
 
-        self.status_label = tk.Label(root, text="Статус: Остановлен", font=("Arial", 14), fg="red")
-        self.status_label.pack(pady=10)
+        self.statusLabel = tk.Label(root, text="Статус: Остановлен", font=("Segoe UI", 13),
+                                    fg="#ff6b6b", bg=bgColor)
+        self.statusLabel.pack(pady=8)
 
-        btn_frame = tk.Frame(root)
-        btn_frame.pack(pady=10)
+        btnFrame = tk.Frame(root, bg=bgColor)
+        btnFrame.pack(pady=15)
 
-        self.start_btn = tk.Button(btn_frame, text="▶ Запустить мониторинг", font=("Arial", 12), bg="#4CAF50", fg="white", width=22, command=self.start_monitoring)
-        self.start_btn.pack(side="left", padx=15)
+        # ✅ Убрали disabledbackground/disabledforeground (их нет в tk.Button)
+        btn_opts = {
+            "font": ("Segoe UI", 11, "bold"), "fg": "white", "width": 24,
+            "relief": "flat", "bd": 0, "cursor": "hand2",
+            "activebackground": "#333333", "activeforeground": "white"
+        }
 
-        self.stop_btn = tk.Button(btn_frame, text="⏹ Остановить мониторинг", font=("Arial", 12), bg="#f44336", fg="white", width=22, command=self.stop_monitoring, state="disabled")
-        self.stop_btn.pack(side="left", padx=15)
+        self.startBtn = tk.Button(btnFrame, text="▶ Запустить мониторинг", bg="#4caf50",
+                                  command=self.start_monitoring, **btn_opts)
+        self.startBtn.pack(side="left", padx=12)
 
-        tk.Button(root, text="⚠ Показать последний риск", font=("Arial", 11), bg="#FF9800", fg="white", command=self.open_analysis).pack(pady=8)
+        self.stopBtn = tk.Button(btnFrame, text=" Остановить мониторинг", bg="#f44336",
+                                 command=self.stopMonitoring, state="disabled", **btn_opts)
+        self.stopBtn.pack(side="left", padx=12)
 
-        tk.Label(root, text="Живой лог:").pack(anchor="w", padx=20)
-        self.log_text = scrolledtext.ScrolledText(root, height=22, font=("Consolas", 10))
-        self.log_text.pack(padx=20, pady=10, fill="both", expand=True)
+        tk.Button(root, text="⚠ Показать последний риск", font=("Segoe UI", 11),
+                  bg="#ff9800", fg="white", relief="flat", bd=0, cursor="hand2",
+                  activebackground="#333333", activeforeground="white",
+                  command=self.openAnalysis).pack(pady=12)
 
-        # Логирование в окно
+        tk.Label(root, text="📋 Логи событий:", font=("Segoe UI", 11, "bold"),
+                 bg=bgColor, fg=subTextColor).pack(anchor="w", padx=35, pady=(5, 0))
+
+        self.logText = scrolledtext.ScrolledText(root, height=24, font=("Consolas", 10),
+                                                  bg=logBg, fg=textColor,
+                                                  insertbackground="white", relief="solid", bd=1,
+                                                  highlightthickness=0, padx=8, pady=5)
+        self.logText.pack(padx=25, pady=10, fill="both", expand=True)
+
         logging.getLogger().handlers.clear()
         handler = GuiLogHandler(self)
         handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
@@ -52,43 +76,40 @@ class MonitorApp:
         self.running = False
 
     def log(self, message):
-        self.log_text.config(state="normal")
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)
-        self.log_text.config(state="disabled")
+        self.logText.config(state="normal")
+        self.logText.insert(tk.END, message + "\n")
+        self.logText.see(tk.END)
+        self.logText.config(state="disabled")
 
     def start_monitoring(self):
         if self.running: return
         self.running = True
-        self.status_label.config(text="Статус: Работает ✅", fg="green")
-        self.start_btn.config(state="disabled")
-        self.stop_btn.config(state="normal")
+        self.statusLabel.config(text="Статус: Работает ✅", fg="#69f0ae")
+        # ✅ Явно задаём цвета при переключении состояния
+        self.startBtn.config(state="disabled", bg="#3a3a3a", fg="#999999")
+        self.stopBtn.config(state="normal", bg="#f44336", fg="white")
         self.log("🚀 Мониторинг запущен...")
+        threading.Thread(target=self.backgroundLoop, daemon=True).start()
 
-        threading.Thread(target=self.background_loop, daemon=True).start()
-
-    def stop_monitoring(self):
+    def stopMonitoring(self):
         self.running = False
-        stop_monitoring()
-        self.status_label.config(text="Статус: Остановлен", fg="red")
-        self.start_btn.config(state="normal")
-        self.stop_btn.config(state="disabled")
-        self.log("⏹ Мониторинг остановлен.")
+        stopMonitoring()
+        self.statusLabel.config(text="Статус: Остановлен", fg="#ff6b6b")
+        # ✅ Возвращаем исходные цвета при активации
+        self.startBtn.config(state="normal", bg="#4caf50", fg="white")
+        self.stopBtn.config(state="disabled", bg="#3a3a3a", fg="#999999")
+        self.log(" Мониторинг остановлен.")
 
-    def background_loop(self):
-        import schedule  # ← важно импортировать здесь
-        
-        # Настраиваем расписание один раз
-        schedule.every(1).minutes.do(run_monitor)           # сбор данных
-        schedule.every(4).minutes.do(start_ai_analysis)    # анализ AI
-        
-        logging.info("Расписание запущено: мониторинг — 1 мин, AI — 10 мин")
-
+    def backgroundLoop(self):
+        import schedule
+        schedule.every(1).minutes.do(runMonitor)
+        schedule.every(4).minutes.do(startAiAnalysis)
+        logging.info("Мониторинг раз в минуту, анализ раз в 4 минуты")
         while self.running:
             schedule.run_pending()
             time.sleep(1)
 
-    def open_analysis(self):
+    def openAnalysis(self):
         try:
             webbrowser.open("analysis.txt")
             self.log("Открыт analysis.txt")
@@ -97,5 +118,6 @@ class MonitorApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.configure(bg=bgColor)
     app = MonitorApp(root)
     root.mainloop()

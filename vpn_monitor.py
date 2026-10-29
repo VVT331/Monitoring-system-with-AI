@@ -2,14 +2,14 @@ import requests
 import logging
 
 # Настройки
-HOME_IP = "111.111.111.111"          # Корреной IP
-API_URLS = [
+ipHome = "192.168.172.1" #Замените на ваш реальный домашний IP
+apiUrls = [
     "https://api.ipify.org?format=json",
     "https://api.ipapi.is/?format=json",   # запасной сервис
 ]
 
-def get_current_ip():
-    for url in API_URLS:
+def getCurrentIp():
+    for url in apiUrls:
         try:
             response = requests.get(url, timeout=8)
             if response.status_code == 200:
@@ -21,20 +21,19 @@ def get_current_ip():
         except Exception as e:
             logging.warning(f"Не удалось получить IP от {url}: {e}")
             continue
+            
     logging.error("Не удалось получить IP ни от одного сервиса")
     return None
 
-def check_vpn():
-    current_ip = get_current_ip()
-    if not current_ip:
+def verificationVPN():
+    currentIp = getCurrentIp()
+    if not currentIp:
         logging.warning("Не удалось получить текущий IP-адрес")
         return "неизвестно"
     
     # Сравниваем с домашним IP
-    is_vpn_active = current_ip != HOME_IP
+    activeVPN = currentIp != ipHome
+    status = "активен" if activeVPN else "отключен"
     
-    status = "активен" if is_vpn_active else "отключен"
-    
-    logging.info(f"Текущий IP: {current_ip} | Домашний IP: {HOME_IP} | VPN: {status}")
-    
+    logging.info(f"Текущий IP: {currentIp} | Домашний IP: {ipHome} | VPN: {status}")
     return status

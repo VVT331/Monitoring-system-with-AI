@@ -6,57 +6,53 @@ from collections import deque
 MAX_EVENTS = 100
 REPORT_FILE = "report.json"
 COUNTER_FILE = "event_counter.txt"
+eventQueue = deque(maxlen=MAX_EVENTS)
+lastEventId = 0
 
-event_queue = deque(maxlen=MAX_EVENTS)
-
-# === НОВАЯ ФУНКЦИЯ: Сброс при запуске ===
-def reset_logs():
-    global last_event_id
-    last_event_id = 0
-    event_queue.clear()
+def resetLogs():
+    global lastEventId
+    lastEventId = 0
+    eventQueue.clear()
     
-    # Очищаем report.json
     with open(REPORT_FILE, 'w', encoding='utf-8') as f:
         json.dump({"report_timestamp": time.strftime('%Y-%m-%d %H:%M:%S'), "events": []}, f, indent=4)
     
-    # Сбрасываем счётчик
     with open(COUNTER_FILE, 'w') as f:
         f.write("0")
-    
-    logging.info("✅ Логи и счётчик ID сброшены (ID начинается с 1)")
+        
+    logging.info("✅ Логи и счётчик ID сброшены")
 
-last_event_id = 0
-
-def add_event(event_type, details):
-    global last_event_id
-    last_event_id += 1
-    
+def addEvent(eventType, details):
+    global lastEventId
+    lastEventId += 1
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    
     event = {
-        "id": last_event_id,
+        "id": lastEventId,
         "timestamp": timestamp,
-        "type": event_type,
+        "type": eventType,
         "details": details
     }
     
-    event_queue.append(event)
-    logging.info(f"Событие добавлено: #{last_event_id} | {event_type} - {details}")
+    eventQueue.append(event)
+    logging.info(f"Событие #{lastEventId}: {eventType} - {details}")
 
-def generate_report(vpn_status, hardware_data):
+def generateReport(vpnStatus, hardwareData):
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     
     report = {
         "report_timestamp": timestamp,
-        "vpn": vpn_status,
+        "vpn": vpnStatus,
         "hardware": {
-            "cpu": hardware_data[0],
-            "ram": hardware_data[1],
-            "cpu_temp": hardware_data[3],
-            "disks": hardware_data[2]
+            "cpu": hardwareData[0],
+            "ram": hardwareData[1],
+            "cpu_temp": hardwareData[3],
+            "disks": hardwareData[2]
         },
-        "events": list(event_queue)
+        "events": list(eventQueue)
     }
     
     with open(REPORT_FILE, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=4, ensure_ascii=False)
-    logging.info(f"Отчёт обновлён ({len(event_queue)} событий)")
+        
+    logging.info(f"Отчёт обновлён ({len(eventQueue)} событий)")

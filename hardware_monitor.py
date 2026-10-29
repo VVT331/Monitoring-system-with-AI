@@ -1,12 +1,10 @@
 import psutil
 import logging
 
-# Функция для мониторинга hardware
-def monitor_hardware():
-    cpu_usage = psutil.cpu_percent(interval=1)  # % CPU
-    ram_usage = psutil.virtual_memory().percent  # % RAM
-    
-    # Диски: % использования для каждого
+def monitoringMetric():
+    cpuUsage = psutil.cpu_percent(interval=1)
+    ramUsage = psutil.virtual_memory().percent
+
     disks = {}
     for partition in psutil.disk_partitions():
         try:
@@ -14,17 +12,16 @@ def monitor_hardware():
             disks[partition.mountpoint] = usage
         except PermissionError:
             disks[partition.mountpoint] = "нет доступа"
-    
-    # Температура: с try-except
-    cpu_temp = "не доступно"
+
+    cpuTemp = "не доступно"
     try:
         temps = psutil.sensors_temperatures()
         if 'coretemp' in temps:
-            cpu_temps = [t.current for t in temps['coretemp'] if t.current is not None]
-            cpu_temp = sum(cpu_temps) / len(cpu_temps) if cpu_temps else "не доступно"
+            cpuTemps = [t.current for t in temps['coretemp'] if t.current is not None]
+            cpuTemp = sum(cpuTemps) / len(cpuTemps) if cpuTemps else "не доступно"
         elif 'cpu_thermal' in temps:
-            cpu_temp = temps['cpu_thermal'][0].current if temps['cpu_thermal'] else "не доступно"
+            cpuTemp = temps['cpu_thermal'][0].current if temps['cpu_thermal'] else "не доступно"
     except (AttributeError, PermissionError):
         pass
-    
-    return cpu_usage, ram_usage, disks, cpu_temp
+
+    return cpuUsage, ramUsage, disks, cpuTemp
